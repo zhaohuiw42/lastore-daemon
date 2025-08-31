@@ -1,3 +1,50 @@
+<a name="6.2.29"></a>
+## 6.2.29 (2025-08-29)
+
+#### 修复
+
+*   修复：使用 Output 查询已安装包 ([ad073a2](https://github.com/linuxdeepin/lastore-daemon/commit/ad073a2))
+*   修复：备份过程中隐藏电源菜单更新按钮 ([d19fb4b](https://github.com/linuxdeepin/lastore-daemon/commit/d19fb4b))
+*   修复：闲时下载相关问题 ([d7860d6](https://github.com/linuxdeepin/lastore-daemon/commit/d7860d6))
+
+#### 功能
+
+*   功能：启动时自动检查更新 ([53c3d8d](https://github.com/linuxdeepin/lastore-daemon/commit/53c3d8d))
+
+
+
+<a name="6.2.28"></a>
+## 6.2.28 (2025-08-22)
+
+#### 修复
+
+*   修复：备份失败通知对话框中按钮点击无响应的问题 ([bb9d3af](https://github.com/linuxdeepin/lastore-daemon/commit/bb9d3af))
+
+
+
+<a name="6.2.27"></a>
+## 6.2.27 (2025-08-15)
+
+#### 修复
+
+*   修复：系统升级后 GRUB 菜单条目显示为英文 ([af93927](https://github.com/linuxdeepin/lastore-daemon/commit/af93927))
+
+
+
+<a name="6.2.26"></a>
+## 6.2.26 (2025-08-01)
+
+#### 修复
+
+*   修复：CVE 相关问题
+*   修复：更新源检查前重置备份状态
+
+#### 国际化
+
+*   国际化：翻译 locale/lastore-daemon.pot 为日语
+
+
+
 <a name="0.14.7"></a>
 ## 0.14.7 (2019-06-19)
 
