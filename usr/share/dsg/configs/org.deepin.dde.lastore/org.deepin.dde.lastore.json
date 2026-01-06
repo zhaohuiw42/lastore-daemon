@@ -585,6 +585,19 @@
       "description": "Enable incremental update",
       "permissions": "readwrite",
       "visibility": "private"
+    },
+    "private-update": {
+      "value": false,
+      "serial": 0,
+      "flags": [
+        "global"
+      ],
+      "name": "PrivateUpdate",
+      "name[zh_CN]": "私有化更新",
+      "description[zh_CN]": "从私有化更新平台获取更新",
+      "description": "update from private update platform",
+      "permissions": "readonly",
+      "visibility": "private"
     }
   }
 }
