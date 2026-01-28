@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/linuxdeepin/lastore-daemon/src/internal/system"
+	"github.com/linuxdeepin/lastore-daemon/src/internal/system/dut"
 	"github.com/linuxdeepin/lastore-daemon/src/internal/updateplatform"
 
 	"github.com/godbus/dbus/v5"
@@ -134,8 +135,6 @@ func (m *Manager) prepareDistUpgrade(sender dbus.Sender, origin system.UpdateTyp
 			m.handleDownloadLimitChanged(job)
 		}
 		j.realRunningHookFn = func() {
-			m.PropsMu.Lock()
-			m.PropsMu.Unlock()
 			m.statusManager.SetUpdateStatus(mode, system.IsDownloading)
 			if !m.updatePlatform.UpdateNowForce { // 立即更新则不发通知
 				sendDownloadingOnce.Do(func() {
@@ -148,9 +147,13 @@ func (m *Manager) prepareDistUpgrade(sender dbus.Sender, origin system.UpdateTyp
 					go m.sendNotify(updateNotifyShowOptional, 0, "preferences-system", "", msg, action, hints, system.NotifyExpireTimeoutDefault)
 				})
 			}
-			return
 		}
 		j.setPreHooks(map[string]func() error{
+			string(system.RunningStatus): func() error {
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PreDownloadCheck, nil)
+				return nil
+			},
 			string(system.PausedStatus): func() error {
 				m.statusManager.SetUpdateStatus(mode, system.DownloadPause)
 				return nil
@@ -187,6 +190,10 @@ func (m *Manager) prepareDistUpgrade(sender dbus.Sender, origin system.UpdateTyp
 						go m.sendNotify(updateNotifyShowOptional, 0, "preferences-system", "", msg, action, hints, system.NotifyExpireTimeoutDefault)
 					}
 				}
+
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PostDownloadCheck, nil)
+
 				go func() {
 					m.inhibitAutoQuitCountAdd()
 					defer m.inhibitAutoQuitCountSub()
@@ -229,6 +236,9 @@ func (m *Manager) prepareDistUpgrade(sender dbus.Sender, origin system.UpdateTyp
 						}
 						m.inhibitAutoQuitCountSub()
 					}
+
+					// 非阻塞检查脚本执行
+					dut.CheckSystem(dut.PostDownloadCheck, nil)
 				}
 
 				// 上报下载成功状态

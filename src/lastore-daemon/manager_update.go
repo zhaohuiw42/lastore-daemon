@@ -20,6 +20,7 @@ import (
 	"github.com/linuxdeepin/go-lib/gettext"
 	"github.com/linuxdeepin/lastore-daemon/src/internal/system"
 	"github.com/linuxdeepin/lastore-daemon/src/internal/system/apt"
+	"github.com/linuxdeepin/lastore-daemon/src/internal/system/dut"
 	"github.com/linuxdeepin/lastore-daemon/src/internal/updateplatform"
 	debVersion "pault.ag/go/debian/version"
 )
@@ -157,6 +158,9 @@ func (m *Manager) updateSource(sender dbus.Sender) (*Job, error) {
 				}()
 				m.updatePlatform.SaveCache(m.config)
 				job.setPropProgress(1.0)
+
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PostUpdateCheck, nil)
 				return nil
 			},
 			string(system.FailedStatus): func() error {
@@ -187,6 +191,9 @@ func (m *Manager) updateSource(sender dbus.Sender) (*Job, error) {
 						Detail:         fmt.Sprintf("apt-get update failed, detail is %v , option is %+v", job.Description, job.option),
 					})
 				}()
+
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PostUpdateCheck, nil)
 				return nil
 			},
 			string(system.EndStatus): func() error {
@@ -231,7 +238,11 @@ func (m *Manager) updateSource(sender dbus.Sender) (*Job, error) {
 						return nil
 					}
 				}
+				m.updatePlatform.PrepareCheckScripts()
 				m.updater.setPropUpdateTarget(m.updatePlatform.GetUpdateTarget()) // 更新目标 历史版本控制中心获取UpdateTarget,获取更新日志
+
+				// 非阻塞脚本执行
+				dut.CheckSystem(dut.PreUpdateCheck, nil)
 
 				// 从更新平台获取数据并处理完成后,进度更新到10%
 				job.setPropProgress(0.10)

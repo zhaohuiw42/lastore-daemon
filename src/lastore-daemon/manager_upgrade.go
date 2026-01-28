@@ -186,11 +186,15 @@ func (m *Manager) distUpgradePartly(sender dbus.Sender, origin system.UpdateType
 				m.statusManager.SetABStatus(mode, system.BackingUp, system.NoABError)
 				// 设置UpdateStatus为WaitRunUpgrade，隐藏更新并关机/重启按钮
 				m.statusManager.SetUpdateStatus(mode, system.WaitRunUpgrade)
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PreBackupCheck, nil)
 				return nil
 			},
 			string(system.SucceedStatus): func() error {
 				m.statusManager.SetABStatus(mode, system.HasBackedUp, system.NoABError)
 				inhibit(false)
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PostBackupCheck, nil)
 				return nil
 			},
 			string(system.FailedStatus): func() error {
@@ -208,6 +212,8 @@ func (m *Manager) distUpgradePartly(sender dbus.Sender, origin system.UpdateType
 					"x-deepin-action-continue": dbus.MakeVariant(
 						buildDistUpgradePartlyCommand(mode, false))}
 				go m.sendNotify(updateNotifyShowOptional, 0, "preferences-system", "", msg, action, hints, system.NotifyExpireTimeoutDefault)
+				// 非阻塞检查脚本执行
+				dut.CheckSystem(dut.PostBackupCheck, nil)
 				return nil
 			},
 		})
@@ -374,7 +380,7 @@ func (m *Manager) distUpgrade(sender dbus.Sender, mode system.UpdateType, needAd
 				}
 				logger.Info("update UUID:", uuid)
 				m.updatePlatform.CreateJobPostMsgInfo(uuid, job.updateTyp)
-				systemErr := dut.CheckSystem(dut.PreCheck, nil) // 只是为了执行precheck的hook脚本
+				systemErr := dut.CheckSystem(dut.PreUpgradeCheck, nil) // 只是为了执行precheck的hook脚本
 				if systemErr != nil {
 					logger.Info(systemErr)
 
@@ -403,7 +409,7 @@ func (m *Manager) distUpgrade(sender dbus.Sender, mode system.UpdateType, needAd
 
 		endJob.setPreHooks(map[string]func() error{
 			string(system.SucceedStatus): func() error {
-				systemErr := dut.CheckSystem(dut.MidCheck, nil)
+				systemErr := dut.CheckSystem(dut.MidUpgradeCheck, nil)
 				if systemErr != nil {
 					logger.Info(systemErr)
 
@@ -737,7 +743,7 @@ func (m *Manager) prepareAptCheck(mode system.UpdateType) (string, error) {
 		if mode == 0 {
 			return "", errors.New("invalid mode")
 		}
-		m.updatePlatform.PrepareCheckScripts()
+
 		uuid, err = dut.GenDutMetaFile(system.DutOnlineMetaConfPath,
 			system.LocalCachePath, coreListMap, repo)
 		if err != nil {
