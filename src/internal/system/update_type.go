@@ -173,7 +173,7 @@ func UpdateSystemDefaultSourceDir(sourceList []string) error {
 	return nil
 }
 
-func UpdateP2pDefaultSourceDir(updateType UpdateType, upgradeDeliveryEnabled bool) {
+func UpdateP2pDefaultSourceDir(updateType UpdateType, upgradeDeliveryEnabled bool, platformRepos []string) {
 	if !upgradeDeliveryEnabled {
 		return
 	}
@@ -218,8 +218,7 @@ func UpdateP2pDefaultSourceDir(updateType UpdateType, upgradeDeliveryEnabled boo
 				return
 			}
 		}
-		var newContent string
-		newContent = strings.ReplaceAll(string(content), "https://", "delivery://")
+		newContent := replaceMatchedReposWithDelivery(string(content), platformRepos)
 		_, err = p2pSource.Write([]byte(newContent))
 		if err != nil {
 			logger.Warningf("Error writing file: %v\n", err)
@@ -241,6 +240,53 @@ func UpdateP2pDefaultSourceDir(updateType UpdateType, upgradeDeliveryEnabled boo
 	if err != nil {
 		logger.Warning(err)
 	}
+}
+
+func replaceMatchedReposWithDelivery(content string, platformRepos []string) string {
+	matchedRepoSet := make(map[string]struct{})
+	for _, repo := range platformRepos {
+		repo = strings.TrimSpace(repo)
+		if repo == "" {
+			continue
+		}
+		matchedRepoSet[repo] = struct{}{}
+	}
+	if len(matchedRepoSet) == 0 {
+		return content
+	}
+
+	var lines []string
+	for _, line := range strings.Split(content, "\n") {
+		if _, ok := matchedRepoSet[strings.TrimSpace(line)]; ok {
+			lines = append(lines, replaceRepoSchemeWithDelivery(line))
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func replaceRepoSchemeWithDelivery(line string) string {
+	fields := strings.Fields(line)
+	if len(fields) < 2 || fields[0] != "deb" {
+		return line
+	}
+	for i := 1; i < len(fields); i++ {
+		if strings.HasPrefix(fields[i], "[") {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(fields[i], "https://"):
+			fields[i] = "delivery://" + strings.TrimPrefix(fields[i], "https://")
+			return strings.Join(fields, " ")
+		case strings.HasPrefix(fields[i], "http://"):
+			fields[i] = "delivery://" + strings.TrimPrefix(fields[i], "http://")
+			return strings.Join(fields, " ")
+		case strings.HasPrefix(fields[i], "delivery://"):
+			return line
+		}
+	}
+	return line
 }
 
 func UpdateSecurityDefaultSourceDir(sourceList []string) error {

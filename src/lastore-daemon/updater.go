@@ -144,9 +144,14 @@ func (u *Updater) refreshUpgradeDeliveryService() {
 	}
 	u.setPropP2PUpdateSupport(true)
 	v := ret.Value()
+	platformHasDelivery := false
+	if u.manager != nil && u.manager.updatePlatform != nil {
+		platformHasDelivery = u.manager.updatePlatform.HasDeliveryRepo()
+	}
+	shouldEnableService := shouldEnableUpgradeDeliveryService(u.config, platformHasDelivery)
 	u.setPropP2PUpdateEnable(u.config.UpgradeDeliveryEnabled)
 	// 情况一：当upgrade服务开启但P2PUpdateEnable关闭时，尝试关闭服务。若关闭失败则将P2PUpdateEnable恢复为true
-	if !u.P2PUpdateEnable && v == system.UpgradeDeliveryEnable {
+	if !shouldEnableService && v == system.UpgradeDeliveryEnable {
 		err = object.Call("org.deepin.upgradedelivery.DisableService", 0).Err
 		if err != nil {
 			logger.Warning(err)
@@ -165,8 +170,18 @@ func (u *Updater) refreshUpgradeDeliveryService() {
 	err = object.Call("org.deepin.upgradedelivery.StartService", 0).Err
 	if err != nil {
 		logger.Warning(err)
-		u.setPropP2PUpdateEnable(false)
+		u.setPropP2PUpdateEnable(u.config.UpgradeDeliveryEnabled)
 	}
+}
+
+func shouldEnableUpgradeDeliveryService(cfg *Config, platformHasDelivery bool) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.UpgradeDeliveryEnabled {
+		return true
+	}
+	return cfg.IntranetUpdate && cfg.PlatformUpdate && platformHasDelivery
 }
 
 type LocaleMirrorSource struct {
