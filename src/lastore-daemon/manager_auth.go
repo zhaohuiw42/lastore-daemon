@@ -276,3 +276,20 @@ func (m *Manager) removeAllowCaller(uniqueName string) {
 		logger.Warning(err)
 	}
 }
+
+// isAllowedSetAllowCallerUID reports whether the given uid is permitted to
+// call SetAllowCaller. Only root (uid 0) and the deepin-daemon user are
+// allowed. A regular user who merely holds the deepin-daemon supplementary
+// group (e.g. via deepin-security-loader) will be rejected because their
+// real uid does not match either of these.
+func isAllowedSetAllowCallerUID(uid uint32) bool {
+	if uid == 0 {
+		return true
+	}
+	duid, err := lookupUserByName(deepinDaemonUser)
+	if err != nil {
+		logger.Warning(err)
+		return false
+	}
+	return uid == duid
+}

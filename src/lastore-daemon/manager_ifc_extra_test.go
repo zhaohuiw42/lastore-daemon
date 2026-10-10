@@ -75,6 +75,29 @@ func newRootConnService(t *testing.T) *dbusutil.Service {
 	return dbusutil.NewService(conn)
 }
 
+// newConnServiceWithUID returns a dbusutil.Service whose fake bus reports the
+// caller as connUID. Use 0 for root, or a non-zero uid to test UID-gated
+// permission paths.
+func newConnServiceWithUID(t *testing.T, connUID uint32) *dbusutil.Service {
+	t.Helper()
+	server, client := net.Pipe()
+	conn, err := dbus.NewConn(server)
+	require.NoError(t, err)
+
+	stop := make(chan struct{})
+	go serveFakeBusWithUID(client, stop, connUID)
+
+	require.NoError(t, conn.Auth(nil))
+	require.NoError(t, conn.Hello())
+
+	t.Cleanup(func() {
+		close(stop)
+		_ = conn.Close()
+		_ = server.Close()
+	})
+	return dbusutil.NewService(conn)
+}
+
 // newRootManager returns a Manager whose checkInvokePermission passes for any
 // sender (fake bus reports uid 0).
 func newRootManager(t *testing.T) *Manager {
@@ -121,6 +144,10 @@ func fakeBusError(serial uint32) *dbus.Message {
 }
 
 func serveFakeBus(c net.Conn, stop <-chan struct{}) {
+	serveFakeBusWithUID(c, stop, 0)
+}
+
+func serveFakeBusWithUID(c net.Conn, stop <-chan struct{}, connUID uint32) {
 	defer c.Close()
 	r := bufio.NewReader(c)
 
@@ -169,7 +196,7 @@ func serveFakeBus(c net.Conn, stop <-chan struct{}) {
 		case "Hello":
 			reply = fakeBusReply(serial, []interface{}{":1.0"})
 		case "GetConnectionUnixUser":
-			reply = fakeBusReply(serial, []interface{}{uint32(0)})
+			reply = fakeBusReply(serial, []interface{}{connUID})
 		case "GetConnectionUnixProcessID":
 			reply = fakeBusReply(serial, []interface{}{uint32(os.Getpid())})
 		case "NameHasOwner":

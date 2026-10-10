@@ -754,9 +754,18 @@ func (m *Manager) GetUpdateDetails(sender dbus.Sender, fd dbus.UnixFD, realTime 
 	return nil
 }
 
-func (m *Manager) SetAllowCaller(uniqueName string) *dbus.Error {
+func (m *Manager) SetAllowCaller(sender dbus.Sender, uniqueName string) *dbus.Error {
 	logger.Infof("try to add allow caller unique name: %q", uniqueName)
-	err := m.addAllowCaller(uniqueName)
+	uid, err := m.service.GetConnUID(string(sender))
+	if err != nil {
+		logger.Warning(err)
+		return dbusutil.ToError(err)
+	}
+	if !isAllowedSetAllowCallerUID(uid) {
+		logger.Warningf("SetAllowCaller rejected: caller uid %d is not root or %s", uid, deepinDaemonUser)
+		return dbusutil.ToError(fmt.Errorf("permission denied: only root or %s can set allow caller", deepinDaemonUser))
+	}
+	err = m.addAllowCaller(uniqueName)
 	logger.Infof("current allow caller list is :%+v", m.allowCallServiceList)
 	if err != nil {
 		logger.Warning(err)

@@ -6,6 +6,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,10 +60,11 @@ func TestSetAllowCallerPersistsRuntimeState(t *testing.T) {
 	sysBus.MockInterfaceDbusIfc.On("GetId", dbus.Flags(0)).Return("bus-id-1", nil)
 
 	m := &Manager{
+		service:       newRootConnService(t),
 		sysDBusDaemon: sysBus,
 	}
 
-	busErr := m.SetAllowCaller(":1.42")
+	busErr := m.SetAllowCaller(":1.42", ":1.42")
 	assert.Nil(t, busErr)
 	assert.Equal(t, strv.Strv{":1.42"}, m.allowCallServiceList)
 
@@ -91,15 +93,84 @@ func TestSetAllowCallerRejectsNameWithoutOwner(t *testing.T) {
 	sysBus.MockInterfaceDbusIfc.On("GetNameOwner", dbus.Flags(0), ":1.404").Return("", errors.New("name has no owner"))
 
 	m := &Manager{
+		service:       newRootConnService(t),
 		sysDBusDaemon: sysBus,
 	}
 
-	busErr := m.SetAllowCaller(":1.404")
+	busErr := m.SetAllowCaller(":1.404", ":1.404")
 	assert.NotNil(t, busErr)
 	assert.Empty(t, m.allowCallServiceList)
 
 	_, err := os.Stat(allowCallerStateFile)
 	assert.True(t, os.IsNotExist(err))
+
+	sysBus.MockInterfaceDbusIfc.AssertExpectations(t)
+}
+
+
+func TestSetAllowCallerRejectsNonRootNonDaemon(t *testing.T) {
+	oldPath := allowCallerStateFile
+	allowCallerStateFile = filepath.Join(t.TempDir(), "allow-callers.ini")
+	defer func() {
+		allowCallerStateFile = oldPath
+	}()
+
+	// lookupUserByName returns a uid that does NOT match the fake-bus uid (1000),
+	// so isAllowedSetAllowCallerUID should reject the caller.
+	oldLookup := lookupUserByName
+	lookupUserByName = func(name string) (uint32, error) {
+		if name == deepinDaemonUser {
+			return 631, nil
+		}
+		return 0, fmt.Errorf("unexpected user %q", name)
+	}
+	defer func() {
+		lookupUserByName = oldLookup
+	}()
+
+	m := &Manager{
+		service: newConnServiceWithUID(t, 1000),
+	}
+
+	busErr := m.SetAllowCaller(":1.99", ":1.99")
+	assert.NotNil(t, busErr)
+	assert.Empty(t, m.allowCallServiceList)
+
+	_, err := os.Stat(allowCallerStateFile)
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestSetAllowCallerAllowsDeepinDaemonUser(t *testing.T) {
+	oldPath := allowCallerStateFile
+	allowCallerStateFile = filepath.Join(t.TempDir(), "allow-callers.ini")
+	defer func() {
+		allowCallerStateFile = oldPath
+	}()
+
+	const daemonUID uint32 = 631
+	oldLookup := lookupUserByName
+	lookupUserByName = func(name string) (uint32, error) {
+		if name == deepinDaemonUser {
+			return daemonUID, nil
+		}
+		return 0, fmt.Errorf("unexpected user %q", name)
+	}
+	defer func() {
+		lookupUserByName = oldLookup
+	}()
+
+	sysBus := &ofdbus.MockDBus{}
+	sysBus.MockInterfaceDbusIfc.On("GetNameOwner", dbus.Flags(0), ":1.50").Return(":1.50", nil)
+	sysBus.MockInterfaceDbusIfc.On("GetId", dbus.Flags(0)).Return("bus-id-daemon", nil)
+
+	m := &Manager{
+		service:       newConnServiceWithUID(t, daemonUID),
+		sysDBusDaemon: sysBus,
+	}
+
+	busErr := m.SetAllowCaller(":1.50", ":1.50")
+	assert.Nil(t, busErr)
+	assert.Equal(t, strv.Strv{":1.50"}, m.allowCallServiceList)
 
 	sysBus.MockInterfaceDbusIfc.AssertExpectations(t)
 }
