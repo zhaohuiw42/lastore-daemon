@@ -59,10 +59,11 @@ func TestSetAllowCallerPersistsRuntimeState(t *testing.T) {
 	sysBus.MockInterfaceDbusIfc.On("GetId", dbus.Flags(0)).Return("bus-id-1", nil)
 
 	m := &Manager{
+		service:       newRootConnService(t),
 		sysDBusDaemon: sysBus,
 	}
 
-	busErr := m.SetAllowCaller(":1.42")
+	busErr := m.SetAllowCaller(":1.42", ":1.42")
 	assert.Nil(t, busErr)
 	assert.Equal(t, strv.Strv{":1.42"}, m.allowCallServiceList)
 
@@ -80,6 +81,23 @@ func TestSetAllowCallerPersistsRuntimeState(t *testing.T) {
 	sysBus.MockInterfaceDbusIfc.AssertExpectations(t)
 }
 
+func TestSetAllowCallerRejectsNonRoot(t *testing.T) {
+	oldPath := allowCallerStateFile
+	allowCallerStateFile = filepath.Join(t.TempDir(), "allow-callers.ini")
+	defer func() {
+		allowCallerStateFile = oldPath
+	}()
+
+	m := newPermissionGatedManager(t)
+
+	busErr := m.SetAllowCaller(":1.99", ":1.99")
+	assert.NotNil(t, busErr)
+	assert.Empty(t, m.allowCallServiceList)
+
+	_, err := os.Stat(allowCallerStateFile)
+	assert.True(t, os.IsNotExist(err))
+}
+
 func TestSetAllowCallerRejectsNameWithoutOwner(t *testing.T) {
 	oldPath := allowCallerStateFile
 	allowCallerStateFile = filepath.Join(t.TempDir(), "allow-callers.ini")
@@ -91,10 +109,11 @@ func TestSetAllowCallerRejectsNameWithoutOwner(t *testing.T) {
 	sysBus.MockInterfaceDbusIfc.On("GetNameOwner", dbus.Flags(0), ":1.404").Return("", errors.New("name has no owner"))
 
 	m := &Manager{
+		service:       newRootConnService(t),
 		sysDBusDaemon: sysBus,
 	}
 
-	busErr := m.SetAllowCaller(":1.404")
+	busErr := m.SetAllowCaller(":1.404", ":1.404")
 	assert.NotNil(t, busErr)
 	assert.Empty(t, m.allowCallServiceList)
 

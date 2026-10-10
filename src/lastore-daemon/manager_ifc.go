@@ -754,9 +754,21 @@ func (m *Manager) GetUpdateDetails(sender dbus.Sender, fd dbus.UnixFD, realTime 
 	return nil
 }
 
-func (m *Manager) SetAllowCaller(uniqueName string) *dbus.Error {
+func (m *Manager) SetAllowCaller(sender dbus.Sender, uniqueName string) *dbus.Error {
 	logger.Infof("try to add allow caller unique name: %q", uniqueName)
-	err := m.addAllowCaller(uniqueName)
+	// SetAllowCaller 将调用者加入信任名单，使其后续调用绕过 polkit，
+	// 因此必须仅允许 root 调用。deepin-security-loader 以 root 身份运行，
+	// 仍可正常为前端注册。拥有 deepin-daemon 组的普通用户不应能直接调用此方法。
+	uid, err := m.service.GetConnUID(string(sender))
+	if err != nil {
+		logger.Warning(err)
+		return dbusutil.ToError(err)
+	}
+	if uid != 0 {
+		logger.Warningf("SetAllowCaller rejected: caller uid %d is not root", uid)
+		return dbusutil.ToError(fmt.Errorf("permission denied: only root can set allow caller"))
+	}
+	err = m.addAllowCaller(uniqueName)
 	logger.Infof("current allow caller list is :%+v", m.allowCallServiceList)
 	if err != nil {
 		logger.Warning(err)
