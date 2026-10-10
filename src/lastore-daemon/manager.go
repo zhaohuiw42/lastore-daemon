@@ -906,6 +906,14 @@ func (m *Manager) watchSession(uid string, session login1.Session) {
 	}
 }
 
+func (m *Manager) getRebootActionHint() string {
+	sessionType := m.userAgents.getActiveSessionType()
+	if sessionType == "wayland" {
+		return "dbus-send,--session,--print-reply,--dest=org.deepin.dde.SessionManager1,/org/deepin/dde/SessionManager1,org.deepin.dde.SessionManager1.RequestReboot"
+	}
+	return "dbus-send,--session,--print-reply,--dest=org.deepin.dde.ShutdownFront1,/org/deepin/dde/ShutdownFront1,org.deepin.dde.ShutdownFront1.Restart"
+}
+
 func (m *Manager) handleSessionNew(sessionId string, sessionPath dbus.ObjectPath) {
 	logger.Debugf("session added %v %v", sessionId, sessionPath)
 	sysBus := m.service.Conn()
